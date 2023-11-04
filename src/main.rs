@@ -1,73 +1,44 @@
-mod weather;
+mod rank;
 
-use anyhow::anyhow;
-use serenity::async_trait;
-use serenity::model::channel::Message;
-use serenity::model::gateway::Ready;
-use serenity::model::id::GuildId;
-use serenity::model::prelude::{Interaction, InteractionResponseType};
-use serenity::prelude::*;
+use anyhow::Context as _;
+use poise::serenity_prelude as serenity;
+use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
-use tracing::{error, info};
 
-struct Bot;
+struct Data {} // User data, which is stored and accessible in all command invocations
+type Error = Box<dyn std::error::Error + Send + Sync>;
+type Context<'a> = poise::Context<'a, Data, Error>;
 
-#[async_trait]
-impl EventHandler for Bot {
-    async fn ready(&self, ctx: Context, ready: Ready) {
-        info!("{} is connected!", ready.user.name);
-
-        let guild_id = GuildId(799367482900480020);
-        let commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
-            commands.create_application_command(|command| {
-                command.name("hello").description("Say hello")
-            })
-        })
-        .await
-        .unwrap();
-
-        info!("{:#?}", commands);
-    }
-
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::ApplicationCommand(command) = interaction {
-            let response_content = match command.data.name.as_str() {
-                "hello" => "hello".to_owned(),
-                command => unreachable!("Unknown Command: {}", command),
-            };
-
-            let create_interaction_response =
-                command.create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| message.content(response_content))
-                });
-
-            if let Err(why) = create_interaction_response.await {
-                eprintln!("Cannot respond to slash command: {}", why);
-            }
-        }
-    }
+/// Responds with "world!"
+#[poise::command(slash_command)]
+async fn hello(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("world!").await?;
+    Ok(())
 }
 
 #[shuttle_runtime::main]
-async fn serenity(
-    #[shuttle_secrets::Secrets] secret_store: SecretStore,
-) -> shuttle_serenity::ShuttleSerenity {
+async fn poise(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttlePoise<Data, Error> {
     // Get the discord token set in `Secrets.toml`
-    let token = if let Some(token) = secret_store.get("DISCORD_TOKEN") {
-        token
-    } else {
-        return Err(anyhow!("'DISCORD_TOKEN' was not found").into());
-    };
+    let discord_token = secret_store
+        .get("DISCORD_TOKEN")
+        .context("'DISCORD_TOKEN' was not found")?;
 
-    // Set gateway intents, which decides what events the bot will be notified about
-    let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
-
-    let client = Client::builder(&token, intents)
-        .event_handler(Bot)
+    let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![hello()],
+            ..Default::default()
+        })
+        .token(discord_token)
+        .intents(serenity::GatewayIntents::non_privileged())
+        .setup(|ctx, _ready, framework| {
+            Box::pin(async move {
+                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                Ok(Data {})
+            })
+        })
+        .build()
         .await
-        .expect("Err creating client");
+        .map_err(shuttle_runtime::CustomError::new)?;
 
-    Ok(client.into())
+    Ok(framework.into())
 }

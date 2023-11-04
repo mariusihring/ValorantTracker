@@ -1,0 +1,4 @@
+GET https://api.henrikdev.xyz/valorant/v1/account/satoru/3770
+Accept: application/json
+
+###
