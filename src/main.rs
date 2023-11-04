@@ -1,6 +1,6 @@
-mod api;
+pub mod api;
 mod commands;
-use crate::commands::{Data, Error};
+use crate::commands::{get_player, Data, Error};
 use anyhow::Context as _;
 use commands::hello;
 use poise::serenity_prelude as serenity;
@@ -16,7 +16,7 @@ async fn poise(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> Shuttle
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![hello()],
+            commands: vec![hello(), get_player()],
             ..Default::default()
         })
         .token(discord_token)
