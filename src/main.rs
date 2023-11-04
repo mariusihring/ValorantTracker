@@ -1,20 +1,11 @@
-mod rank;
-
+mod api;
+mod commands;
+use crate::commands::Data;
 use anyhow::Context as _;
+use commands::hello;
 use poise::serenity_prelude as serenity;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
-
-struct Data {} // User data, which is stored and accessible in all command invocations
-type Error = Box<dyn std::error::Error + Send + Sync>;
-type Context<'a> = poise::Context<'a, Data, Error>;
-
-/// Responds with "world!"
-#[poise::command(slash_command)]
-async fn hello(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.say("world!").await?;
-    Ok(())
-}
 
 #[shuttle_runtime::main]
 async fn poise(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttlePoise<Data, Error> {
