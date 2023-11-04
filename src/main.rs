@@ -1,6 +1,6 @@
 mod api;
 mod commands;
-use crate::commands::Data;
+use crate::commands::{Data, Error};
 use anyhow::Context as _;
 use commands::hello;
 use poise::serenity_prelude as serenity;
